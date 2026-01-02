@@ -1,15 +1,13 @@
 # CRM Contacts Management with Merge Feature
 
-This project implements a **CRM-style Contacts Management System** built using **Laravel and Filament**.  
-It provides functionality for managing contacts, dynamic custom fields, and a robust merge feature that preserves data integrity without data loss.
-
----
+This project implements a **CRM-like Contacts module** using **Laravel + Filament**.
 
 ## 🚀 Features
 
 ### ✅ Basic CRM
-- Full CRUD for Contacts
-- Contact Fields:
+- Full CRUD for Contacts with real-time updates
+- AJAX-powered UI via **Filament Livewire components** (no page reloads)
+- Fields:
   - Name
   - Email
   - Phone
@@ -17,117 +15,83 @@ It provides functionality for managing contacts, dynamic custom fields, and a ro
   - Profile Image Upload
   - Additional File Upload
 - Dynamic Custom Fields (flexible user-defined fields)
-- AJAX-powered UI using Filament Livewire
 - Filters by Name, Email, and Gender
 
----
-
 ### ✅ Merge Contacts
-- Merge a secondary contact into a master contact
-- Select the master contact via modal
-- Merge emails and phones as unique, comma-separated lists
-- Merge custom fields safely without duplication
-- Secondary contact marked as merged but **not deleted**
-- Merged contacts excluded from main contact list
+- Merge two contacts into one master contact
+- Select Master Contact from existing active contacts
+- Emails & phones merged into comma-separated lists
+- Custom fields merged safely without data loss
+- Secondary contact marked as merged and hidden from lists
 
 ---
 
-## 🗄 Database Schema
+## 🗄 Database Design
 
-### `contacts` table
-| Column          | Description                          |
-|-----------------|------------------------------------|
-| id              | Primary key                        |
-| user_id         | Owner/User reference                |
-| name            | Contact's full name                 |
-| email           | Contact email(s)                   |
-| phone           | Contact phone number(s)            |
-| gender          | Contact gender                     |
-| profile_image   | Profile image file path             |
-| additional_file | Additional uploaded file path       |
-| is_merged       | Boolean to mark merged contacts    |
-| merged_into     | Master contact id if merged        |
-| created_at      | Timestamp                         |
-| updated_at      | Timestamp                         |
+### contacts
+- `id`, `user_id`, `name`, `email`, `phone`, `gender`, `profile_image`, `additional_file`
+- `is_merged` (boolean to mark merged contacts)
+- `merged_into` (references master contact id)
+- Timestamps
 
----
+### custom_fields
+- `id`, `name`, `type` (field type), timestamps
 
-### `custom_fields` table
-| Column    | Description                |
-|-----------|----------------------------|
-| id        | Primary key                |
-| name      | Custom field name          |
-| type      | Field data type (e.g. text)|
-| created_at| Timestamp                 |
-| updated_at| Timestamp                 |
+### contact_custom_field_values
+- `id`, `contact_id`, `custom_field_id`, `value`, timestamps
+
+### users
+- `id`, `name`, `email`, `password`, timestamps, and other auth fields
 
 ---
 
-### `contact_custom_field_values` table
-| Column          | Description                     |
-|-----------------|---------------------------------|
-| id              | Primary key                    |
-| contact_id      | Foreign key to contacts          |
-| custom_field_id | Foreign key to custom_fields     |
-| value           | Stored value of the custom field |
-| created_at      | Timestamp                     |
-| updated_at      | Timestamp                     |
+## 🔁 Merge Logic
+
+- Master contact remains active and retains its ID
+- Secondary contact:
+  - Marked as `is_merged = true`
+  - `merged_into` set to the master contact's ID
+- Emails and phones combined uniquely with commas
+- Custom fields:
+  - Values from secondary moved if master lacks them
+  - Existing values on master remain unchanged
 
 ---
 
-### `users` table (Application Users)
-| Column            | Description                      |
-|-------------------|----------------------------------|
-| id                | Primary key                    |
-| name              | User's full name               |
-| email             | User's email address           |
-| email_verified_at | Email verification timestamp   |
-| password          | Hashed password                |
-| remember_token    | Token for session persistence  |
-| created_at        | Timestamp                    |
-| updated_at        | Timestamp                    |
+## AJAX Implementation Note
+
+Although the task suggested using AJAX, this project leverages **Filament's Livewire framework**, which provides reactive, AJAX-driven CRUD operations out-of-the-box. This ensures smooth, asynchronous updates without full page reloads, fulfilling the AJAX requirement seamlessly within the Laravel ecosystem.
 
 ---
 
-## 🔁 Merge Logic Explained
-
-- The **master contact** remains active and retains its data.
-- The **secondary contact** is marked as merged (`is_merged = true`) and linked to the master via `merged_into`.
-- Emails and phones from both contacts are merged into unique, comma-separated lists in the master.
-- Custom fields are merged as follows:
-  - If the master contact **does not have** a custom field, it is added.
-  - If the master contact **already has** the custom field with the same value, it is skipped.
-- No data is lost; merged contacts are hidden but retained for audit.
+## 🎥 Demo Video (Recommended)
+- Show creating, editing, deleting contacts
+- Demonstrate merge action and modal form
+- Show database state before and after merging
 
 ---
 
-## 🎥 Demo Video
-
-A demo video showcasing:
-- Creating contacts with dynamic custom fields
-- Performing contact merges
-- Viewing database changes before and after merges
-
----
-
-## 🧑‍💻 Technology Stack
-
-- Laravel 9
-- Filament v2.17
-- MySQL
-- Livewire
+## 🧑‍💻 Tech Stack
+- Laravel 9+
+- Filament v2.x
+- MySQL or compatible database
+- Livewire (for reactive UI)
 
 ---
 
-## 📌 Use Case
+## Installation
 
-Ideal for:
-- CRM systems
-- Lead and contact management
-- Handling duplicates efficiently
-- Admin dashboards with extensible contact fields
+1. Clone repository  
+2. Run `composer install`  
+3. Set up `.env` file and database  
+4. Run migrations with `php artisan migrate`  
+5. Serve with `php artisan serve`
 
 ---
 
+## Author
 
-**Happy Coding!**
+Created as part of a practical task for CRM Contacts Management with merge functionality.
+
+---
+
