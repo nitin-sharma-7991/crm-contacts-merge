@@ -16,6 +16,7 @@ use Filament\Resources\Resource;
 use Filament\Resources\Table;
 use Filament\Tables;
 use Illuminate\Database\Eloquent\Builder;
+use Illuminate\Support\Facades\DB;
 
 class ContactResource extends Resource
 {
@@ -39,8 +40,12 @@ class ContactResource extends Resource
                 ])
                 ->inline(),
 
-            FileUpload::make('profile_image')->directory('profiles')->image(),
-            FileUpload::make('additional_file')->directory('documents'),
+            FileUpload::make('profile_image')
+                ->directory('profiles')
+                ->image(),
+
+            FileUpload::make('additional_file')
+                ->directory('documents'),
 
             Repeater::make('customValues')
                 ->relationship('customValues')
@@ -73,7 +78,6 @@ class ContactResource extends Resource
                 Tables\Columns\TextColumn::make('name')->searchable()->sortable(),
                 Tables\Columns\TextColumn::make('email')->searchable(),
                 Tables\Columns\TextColumn::make('phone'),
-
                 Tables\Columns\BadgeColumn::make('gender')->colors([
                     'primary' => 'male',
                     'success' => 'female',
@@ -91,6 +95,7 @@ class ContactResource extends Resource
 
             ->actions([
                 Tables\Actions\EditAction::make(),
+                Tables\Actions\DeleteAction::make(),
 
                 Tables\Actions\Action::make('merge')
                     ->label('Merge')
@@ -98,7 +103,7 @@ class ContactResource extends Resource
                     ->requiresConfirmation()
                     ->modalHeading('Confirm Merge')
                     ->modalSubheading(
-                        'The selected contact will be merged into the master contact. No data will be lost.'
+                        'Secondary contact data will be merged into the master contact. No data will be lost.'
                     )
                     ->form([
                         Select::make('master_id')
@@ -112,50 +117,63 @@ class ContactResource extends Resource
                     ])
                     ->action(function (Contact $record, array $data) {
 
-                        $master = Contact::findOrFail($data['master_id']);
-                        $secondary = $record;
+                        DB::transaction(function () use ($record, $data) {
 
-                        /* ---------- EMAIL MERGE ---------- */
-                        $emails = collect(
-                            array_filter([
+                            $secondary = $record;
+                            $master = Contact::findOrFail($data['master_id']);
+
+                            if ($secondary->id === $master->id) {
+                                return;
+                            }
+
+                            /* ---------- EMAIL MERGE ---------- */
+                            $emails = collect([
                                 ...explode(',', (string) $master->email),
                                 ...explode(',', (string) $secondary->email),
                             ])
-                        )->map(fn ($e) => trim($e))
-                         ->unique()
-                         ->implode(', ');
+                                ->map(fn ($e) => trim($e))
+                                ->filter()
+                                ->unique()
+                                ->implode(', ');
 
-                        /* ---------- PHONE MERGE ---------- */
-                        $phones = collect(
-                            array_filter([
+                            /* ---------- PHONE MERGE ---------- */
+                            $phones = collect([
                                 ...explode(',', (string) $master->phone),
                                 ...explode(',', (string) $secondary->phone),
                             ])
-                        )->map(fn ($p) => trim($p))
-                         ->unique()
-                         ->implode(', ');
+                                ->map(fn ($p) => trim($p))
+                                ->filter()
+                                ->unique()
+                                ->implode(', ');
 
-                        $master->update([
-                            'email' => $emails,
-                            'phone' => $phones,
-                        ]);
+                            $master->update([
+                                'email' => $emails,
+                                'phone' => $phones,
+                            ]);
 
-                        /* ---------- CUSTOM FIELD MERGE ---------- */
-                        foreach ($secondary->customValues as $value) {
-                            $exists = $master->customValues()
-                                ->where('custom_field_id', $value->custom_field_id)
-                                ->exists();
+                            /* ---------- CUSTOM FIELD MERGE ---------- */
+                            $secondary->load('customValues');
 
-                            if (! $exists) {
-                                $value->update(['contact_id' => $master->id]);
+                            foreach ($secondary->customValues as $value) {
+                                $exists = $master->customValues()
+                                    ->where('custom_field_id', $value->custom_field_id)
+                                    ->where('value', $value->value)
+                                    ->exists();
+
+                                if (! $exists) {
+                                    $master->customValues()->create([
+                                        'custom_field_id' => $value->custom_field_id,
+                                        'value' => $value->value,
+                                    ]);
+                                }
                             }
-                        }
 
-                        /* ---------- MARK SECONDARY ---------- */
-                        $secondary->update([
-                            'is_merged' => true,
-                            'merged_into' => $master->id,
-                        ]);
+                            /* ---------- MARK SECONDARY ---------- */
+                            $secondary->update([
+                                'is_merged' => true,
+                                'merged_into' => $master->id,
+                            ]);
+                        });
                     }),
             ]);
     }
